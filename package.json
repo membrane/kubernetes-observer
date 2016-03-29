@@ -1,0 +1,25 @@
+{
+  "name": "kubernetes-observer",
+  "version": "0.0.0",
+  "description": "API-Frontend for kubernetes",
+  "main": "app/index.js",
+  "scripts": {
+    "start": "lite-server "
+  },
+  "author": "predic8 GmbH",
+  "license": "ISC",
+  "dependencies": {
+    "angular": "^1.5.2",
+    "angular-route": "^1.5.2"
+  },
+  "devDependencies": {
+    "lite-server": "^2.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/membrane/kubernetes-observer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/membrane/kubernetes-observer/issues"
+  }
+}

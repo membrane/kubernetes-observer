@@ -1,0 +1,81 @@
+<html ng-app="kubernetes-observer">
+<script src="angular.min.js">
+</script>
+<script src="jquery-2.2.2.min.js">
+</script>
+<style type="text/css">
+    .scrollable0{
+        overflow:scroll;
+        height:200px;
+        width:700px;
+        float: left;
+    }
+    .scrollable1{
+        overflow:scroll;
+        height:200px;
+        width:700px;
+        float: right;
+    }
+</style>
+<head>
+    <title>Kubernetes Observer</title>
+</head>
+<body>
+<div ng-controller="podsCtrl">
+    <select name="a" ng-model="pod_" ng-options="pod as pod.metadata.name for pod in pods">
+
+    </select>
+    <div >
+        <div ng-repeat="url in pod_.urls">
+            <div class="{{url.i}}"><pre>{{pod_.getressource(url.u)}}</pre></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    angular.module('kubernetes-observer', [])
+            .controller('podsCtrl', function($scope, $http, Getressource){
+                $http.get('/api/v1/namespaces/default/pods').then(function(Response) {
+                    $scope.pods = Response.data.items;
+                    $scope.pods.forEach(function(el){
+                        el.urls=[];
+                        var i=0;
+                        el.spec.containers.forEach(function (e){
+                            el.urls.push({u:"api/v1/namespaces/"+el.metadata.namespace+"/pods/"+el.metadata.name+"/log?container="+ e.name+"&follow=false", i:"scrollable"+i});
+                            i++;
+                            i%=2;
+                        });
+                        el.getressource = Getressource;
+                    });
+                });
+            })
+            .factory('Getressource', function() {
+                var content= undefined;
+                return  function(url){
+                        $.ajax({
+                           url: url,
+                           success: function (result) {
+                               if (result.isOk == false) alert(result.message);
+                               content=  result;
+                           },
+                           async: false
+                        });
+                        $(".scrollable0").each(function(index, el){
+                            el.scrollTop= 9999999;
+                        });
+                        $(".scrollable1").each(function(index, el){
+                            el.scrollTop= 9999999;
+                        });
+                        return content;
+                    }
+
+            });
+
+
+
+</script>
+
+
+</body>
+</html>
