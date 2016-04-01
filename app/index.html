@@ -23,59 +23,110 @@
 <body>
 <div ng-controller="podsCtrl">
     <select name="choose"  id="choose" value="{{choosenpod}}" ng-model="choose">
-        <option ng-repeat="pod in pods" value="{{pod.metadata.generateName}}">{{pod.metadata.name}}</option>
+        <option ng-repeat="pod in pods" value="{{pod.metadata.name}}">{{pod.metadata.name}}</option>
     </select>
-    <!--Automatisch auf Nachfolgepod bleiben: <input type="checkbox" name="nachfolgepod" id="nachfolgepod">-->
+    Automatisch auf Nachfolgepod bleiben: <input type="checkbox" name="nachfolgepod" id="nachfolgepod" ng-model="nachfolgepod">
     <div >
         <div ng-repeat="url in urls">
-            <div class="{{url.i}}"><pre>{{getressource(url.u)}}</pre></div>
+            <div class="{{url.i}}"><pre>{{url.value}}</pre></div>
         </div>
     </div>
 
 </div>
 
 <script>
-    var timeout=2000;
+    var timeout=1000;
+    function getGeneratorname(name){
+        var tmp= name.split("-");
+        var ret = "";
+        for(var i= 0; i<tmp.length-1; i++){
+            ret=ret+tmp[i]+"-";
+        }
+        return ret;
+    }
+    var stillquery=true;
+    function cmp(a, b){
+
+        if(a.length> b.length || b.length> a.length) return false;
+        var tmp = true;
+        for(var i=0; i< a.length; i++){
+            tmp == tmp &&JSON.stringify(a[i].metadata)===JSON.stringify(b[i].metadata);
+        }
+
+        return tmp;
+    }
     angular.module('kubernetes-observer', [])
             .controller('podsCtrl', function($scope, $http, $timeout, Getressource){
-                var data={response:null, calls:null};
+                var calls=null;
                 var choosenpod=null;
                 $scope.getressource = Getressource;
+                $scope.urls =[];
+                $scope.pods =[];
 
                 $scope.$watch('choose', function(newValue, oldValue) {
-                    console.log(newValue, oldValue);
+                    //console.log(newValue, oldValue);
                     choosenpod=newValue;
+                    $scope.pods.forEach(function (el) {
+                        if (el.metadata.name === choosenpod) {
+                            $scope.urls = el.urls;
+                        }
+                    });
+                    stillquery=true;
                 });
 
                 var poller = function() {
+                    if(stillquery)
+                        $scope.urls.forEach(function(el){
+                            $http.get(el.u).then(function(r){
+                                r= r.data;
+                                if(r!=el.value){
+                                    el.value=r;
+                                    $(".scrollable0").each(function(index, e){
+                                        e.scrollTop= 9999999;
+                                    });
+                                    $(".scrollable1").each(function(index, e){
+                                        e.scrollTop= 9999999;
+                                    });
+                                }
+                            }, function(r){
+                                stillquery=false;
 
-                    //console.log(choosenpod);
+                            });
+                        });
                     $http.get('/api/v1/namespaces/default/pods').then(function(r) {
-                        data.response = r.data.items;
-                        $scope.pods = data.response;
-                        $scope.pods.forEach(function (el) {
-                            el.urls = [];
-                            var i = 0;
-                            el.spec.containers.forEach(function (e) {
-                                el.urls.push({
-                                    u: "/api/v1/namespaces/" + el.metadata.namespace + "/pods/" + el.metadata.name + "/log?container=" + e.name + "&follow=false",
-                                    i: "scrollable" + i
+                        console.log($scope.pods , r.data.items);
+                        if(!cmp($scope.pods , r.data.items)) {
+                            $scope.pods = r.data.items;
+                            $scope.pods.forEach(function (el) {
+                                el.urls = [];
+                                var i = 0;
+                                el.spec.containers.forEach(function (e) {
+                                    el.urls.push({
+                                        u: "/api/v1/namespaces/" + el.metadata.namespace + "/pods/" + el.metadata.name + "/log?container=" + e.name + "&follow=false",
+                                        i: "scrollable" + i
+                                    });
+                                    i++;
+                                    i %= 2;
                                 });
-                                i++;
-                                i %= 2;
+
+                            });
+                        }
+                        $scope.urls.forEach(function(el){
+                            var tmp= Getressource(el.u);
+                            if(tmp!=undefined && tmp!= "")
+                                el.value=tmp;
+                        });
+
+                        if($scope.nachfolgepod){
+                            $scope.pods.forEach(function(el){
+                                if(el.metadata.generateName===getGeneratorname(choosenpod)){
+                                    $scope.choose=el.metadata.name;
+                                }
                             });
 
-                        });
-
-                        $scope.pods.forEach(function (el) {
-                            if (el.metadata.generateName === choosenpod) {
-                                $scope.urls = el.urls;
-                            }
-                        });
-                        $scope.choose=choosenpod;
-
+                        }
                     });
-                    data.calls++;
+                    calls++;
                     $timeout(poller, timeout);
 
                 };
@@ -85,11 +136,13 @@
             .factory('Getressource', function() {
                 var content= undefined;
                 return  function(url){
-                        $.ajax({
+                        if(stillquery) $.ajax({
                            url: url,
                            success: function (result) {
-                               if (result.isOk == false) alert(result.message);
                                content=  result;
+                           },
+                           error: function(result){
+                               stillquery=false;
                            },
                            async: false
                         });
