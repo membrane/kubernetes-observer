@@ -3,6 +3,10 @@
 </script>
 <script src="jquery-2.2.2.min.js">
 </script>
+<script src="bootstrap.min.js">
+</script>
+<link href="bootstrap.min.css" rel="stylesheet">
+<link href="bootstrap-theme.min.css" rel="stylesheet">
 <style type="text/css">
     .scrollable0{
         overflow:scroll;
@@ -16,26 +20,61 @@
         width:700px;
         float: right;
     }
+    .scrollable0 > pre{
+        white-space:pre-wrap;
+    }
+    .scrollable1 > pre{
+        white-space:pre-wrap;
+    }
+    .logo{
+        width:100px;
+        height:34px;
+        float: right;
+    }
 </style>
+
 <head>
     <title>Kubernetes Observer</title>
 </head>
 <body>
 <div ng-controller="podsCtrl">
-    <select name="choose"  id="choose" value="{{choosenpod}}" ng-model="choose">
-        <option ng-repeat="pod in pods" value="{{pod.metadata.name}}">{{pod.metadata.name}}</option>
-    </select>
-    Automatisch auf Nachfolgepod bleiben: <input type="checkbox" name="nachfolgepod" id="nachfolgepod" ng-model="nachfolgepod">
-    <div >
+    <table class="form-inline table" width="100%">
+        <tr>
+            <td>
+                <select name="chooseNameSpace"  id="chooseNameSpace" value="{{chooseNameSpace}}" ng-model="chooseNameSpace" class="form-control">
+                    <option ng-repeat="namespace in namespaces" value="{{namespace.metadata.name}}">{{namespace.metadata.name}}</option>
+                </select>
+            </td>
+            <td>
+                <select name="choosePod"  id="choosePod" value="{{choosePod}}" ng-model="choosePod" class="form-control">
+                    <option ng-repeat="pod in pods" value="{{pod.metadata.name}}">{{pod.metadata.name}}</option>
+                </select>
+            </td>
+            <td>
+                <label for="nachfolgepod">Switch to following pod:</label> <input type="checkbox" name="nachfolgepod" id="nachfolgepod" ng-model="nachfolgepod" class="checkbox" data-toggle="tooltip" data-placement="bottom" title="If checked you will automatically be redirected to the replacement for this pod">
+            </td>
+            <td>
+                <label for="tailLines">TailLines: </label><input type="number" name="tailLines" ng-model="tailLines" id="tailLines" value="{{tailLines}}" class="form-control" data-toggle="tooltip" data-placement="bottom" title="0 for all lines">
+            </td>
+            <td>
+                <label for="timeout">Timeout: </label><input type="number" name="timeout" ng-model="timeout" id="timeout" value="{{timeout}}" class="form-control" data-toggle="tooltip" data-placement="bottom" title="Polling interval in ms">
+            </td>
+            <td>
+                <a href="http://predic8.de"><img class="logo" src="logo.png"/></a>
+            </td>
+        </tr>
+    </table>
+    <hr />
+    <div>
         <div ng-repeat="url in urls">
-            <div class="{{url.i}}"><pre>{{url.value}}</pre></div>
+                <div class="{{url.i}}"><pre>{{url.value}}</pre></div>
         </div>
     </div>
 
 </div>
 
 <script>
-    var timeout=1000;
+
     function getGeneratorname(name){
         var tmp= name.split("-");
         var ret = "";
@@ -45,64 +84,101 @@
         return ret;
     }
     var stillquery=true;
+    var scroll=true;
     function cmp(a, b){
-
         if(a.length> b.length || b.length> a.length) return false;
         var tmp = true;
         for(var i=0; i< a.length; i++){
             tmp == tmp &&JSON.stringify(a[i].metadata)===JSON.stringify(b[i].metadata);
+            if(!tmp) break;
         }
-
         return tmp;
     }
     angular.module('kubernetes-observer', [])
-            .controller('podsCtrl', function($scope, $http, $timeout, Getressource){
+            .controller('podsCtrl', function($scope, $http, $timeout){
                 var calls=null;
-                var choosenpod=null;
-                $scope.getressource = Getressource;
+                var choosenPod=null;
+                var choosennamespace="default";
                 $scope.urls =[];
                 $scope.pods =[];
+                $scope.namespaces =[];
+                $scope.tailLines=50;
+                $scope.timeout=500;
 
-                $scope.$watch('choose', function(newValue, oldValue) {
-                    //console.log(newValue, oldValue);
-                    choosenpod=newValue;
+                $scope.$watch('choosePod', function(newValue, oldValue) {
+                    choosenPod=newValue;
                     $scope.pods.forEach(function (el) {
-                        if (el.metadata.name === choosenpod) {
+                        if (el.metadata.name === choosenPod) {
                             $scope.urls = el.urls;
                         }
                     });
                     stillquery=true;
+                    scroll=true;
+
+                });
+                $scope.$watch('chooseNameSpace', function(newValue, oldValue) {
+                    choosenPod=null;
+                    choosennamespace=newValue;
+                    $scope.urls =[];
                 });
 
-                var poller = function() {
-                    if(stillquery)
-                        $scope.urls.forEach(function(el){
-                            $http.get(el.u).then(function(r){
-                                r= r.data;
-                                if(r!=el.value){
-                                    el.value=r;
-                                    $(".scrollable0").each(function(index, e){
-                                        e.scrollTop= 9999999;
-                                    });
-                                    $(".scrollable1").each(function(index, e){
-                                        e.scrollTop= 9999999;
-                                    });
-                                }
-                            }, function(r){
-                                stillquery=false;
 
+                $scope.$watch('tailLines', function(newValue, oldValue) {
+                    $scope.tailLines=newValue;
+                });
+                $scope.$watch('timeout', function(newValue, oldValue) {
+                    $scope.timeout=newValue;
+                });
+
+
+                var poller = function() {
+                    if($scope.tailLines!=0){
+                        tl="&tailLines=" + $scope.tailLines;
+                    } else {
+                        tl="";
+                    }
+                    if(scroll){ //to scroll or not to scroll?
+                        $(".scrollable0").each(function (index, e) {
+                            e.scrollTop = 9999999;
+                        });
+                        $(".scrollable1").each(function (index, e) {
+                            e.scrollTop =  9999999;
+                        });
+                        scroll=!scroll; //Don't scroll anymore
+                    }
+                    if(stillquery) //Query for logchange until logs are not found anymore
+                        $scope.urls.forEach(function(el){
+                            $.get(el.u+tl, function(data,status,xhr){
+                               if(status==="success"){
+                                    r= data;
+                                    if(r!=el.value){
+                                        el.value=r;
+                                        scroll=true;
+                                    }
+                               }
+                               else stillquery=false;
                             });
                         });
-                    $http.get('/api/v1/namespaces/default/pods').then(function(r) {
-                        console.log($scope.pods , r.data.items);
-                        if(!cmp($scope.pods , r.data.items)) {
+
+                    $http.get('/api/v1/namespaces').then(function(r) {
+                        //Download list of namespaces
+                        if(!cmp($scope.namespaces, r.data.items)){
+                            $scope.namespaces = r.data.items;
+                            choosennamespace="default";
+                            $scope.chooseNameSpace="default";
+                        }
+                    });
+
+                    $http.get('/api/v1/namespaces/'+choosennamespace+'/pods').then(function(r) {
+                        //Download podlist
+                        if (!cmp($scope.pods, r.data.items)) {
                             $scope.pods = r.data.items;
                             $scope.pods.forEach(function (el) {
                                 el.urls = [];
                                 var i = 0;
                                 el.spec.containers.forEach(function (e) {
                                     el.urls.push({
-                                        u: "/api/v1/namespaces/" + el.metadata.namespace + "/pods/" + el.metadata.name + "/log?container=" + e.name + "&follow=false",
+                                        u: "/api/v1/namespaces/" + el.metadata.namespace + "/pods/" + el.metadata.name + "/log?container=" + e.name,
                                         i: "scrollable" + i
                                     });
                                     i++;
@@ -111,50 +187,22 @@
 
                             });
                         }
-                        $scope.urls.forEach(function(el){
-                            var tmp= Getressource(el.u);
-                            if(tmp!=undefined && tmp!= "")
-                                el.value=tmp;
-                        });
-
-                        if($scope.nachfolgepod){
-                            $scope.pods.forEach(function(el){
-                                if(el.metadata.generateName===getGeneratorname(choosenpod)){
-                                    $scope.choose=el.metadata.name;
-                                }
-                            });
-
+                        if($scope.nachfolgepod) {
+                            //Move to the following pod, if this one is replaced
+                            if (choosenPod != null) {
+                                $scope.pods.forEach(function (el) {
+                                    if (el.metadata.generateName === getGeneratorname(choosenPod)) {
+                                        $scope.choosenPod = el.metadata.name;
+                                    }
+                                });
+                            }
                         }
                     });
                     calls++;
-                    $timeout(poller, timeout);
+                    $timeout(poller, $scope.timeout);
 
                 };
                 poller();
-
-            })
-            .factory('Getressource', function() {
-                var content= undefined;
-                return  function(url){
-                        if(stillquery) $.ajax({
-                           url: url,
-                           success: function (result) {
-                               content=  result;
-                           },
-                           error: function(result){
-                               stillquery=false;
-                           },
-                           async: false
-                        });
-                        $(".scrollable0").each(function(index, el){
-                            el.scrollTop= 9999999;
-                        });
-                        $(".scrollable1").each(function(index, el){
-                            el.scrollTop= 9999999;
-                        });
-                        return content;
-                    }
-
             });
 
 
