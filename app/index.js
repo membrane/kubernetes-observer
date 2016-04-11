@@ -74,7 +74,7 @@ angular.module('kubernetes-observer', [])
             }
             if(stillquery) //Query for logchange until logs are not found anymore
                 $scope.urls.forEach(function(el){
-                    $.get(el.u+tl, function(data,status,xhr){
+                    $.get(el.u+tl).then( function(data,status,xhr){
                         if(status==="success"){
                             r= data;
                             if(r!=el.value){
@@ -83,6 +83,8 @@ angular.module('kubernetes-observer', [])
                             }
                         }
                         else stillquery=false;
+                    }, function(data, status, xhr){
+                        stillquery=false;
                     });
                 });
 
