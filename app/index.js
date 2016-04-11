@@ -115,12 +115,13 @@ angular.module('kubernetes-observer', [])
 
                     });
                 }
-                if($scope.nachfolgepod) {
+
+                if($scope.nachfolgepod && !stillquery) {
                     //Move to the following pod, if this one is replaced
                     if (choosenPod != null) {
                         $scope.pods.forEach(function (el) {
                             if (el.metadata.generateName === getGeneratorname(choosenPod)) {
-                                $scope.choosenPod = el.metadata.name;
+                                $scope.choosePod = el.metadata.name;
                             }
                         });
                     }
